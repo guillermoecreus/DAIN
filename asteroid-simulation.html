@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Asteroid Impact Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            max-width: 300px;
+        }
+
+        h1 {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            color: #ff6b35;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        button {
+            background: #ff6b35;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-right: 10px;
+            margin-top: 10px;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #ff8c5a;
+        }
+
+        #stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            min-width: 200px;
+        }
+
+        .stat-item {
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: #aaa;
+        }
+
+        .stat-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #ff6b35;
+        }
+
+        #info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 30px;
+            border-radius: 10px;
+            color: white;
+            text-align: center;
+        }
+
+        .warning {
+            color: #ff4444;
+            font-weight: bold;
+            animation: pulse 0.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="controls">
+        <h1>🌍 Asteroid Impact</h1>
+        
+        <div class="control-group">
+            <label>Asteroid Size: <span id="size-value">50</span></label>
+            <input type="range" id="asteroid-size" min="20" max="100" value="50">
+        </div>
+        
+        <div class="control-group">
+            <label>Impact Speed: <span id="speed-value">50</span></label>
+            <input type="range" id="impact-speed" min="10" max="100" value="50">
+        </div>
+        
+        <div class="control-group">
+            <label>Number of Asteroids: <span id="count-value">5</span></label>
+            <input type="range" id="asteroid-count" min="1" max="20" value="5">
+        </div>
+        
+        <button id="launch-btn">Launch Asteroids</button>
+        <button id="reset-btn">Reset</button>
+    </div>
+    
+    <div id="stats">
+        <div class="stat-item">
+            <div class="stat-label">Asteroids Launched</div>
+            <div class="stat-value" id="launched-count">0</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Impacts</div>
+            <div class="stat-value" id="impact-count">0</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Energy Released (TNT)</div>
+            <div class="stat-value" id="energy-value">0 MT</div>
+        </div>
+    </div>
+    
+    <div id="info">
+        Drag to rotate view • Scroll to zoom • Launch asteroids to see the impact!
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Camera position
+        camera.position.z = 500;
+        camera.position.y = 200;
+        camera.lookAt(0, 0, 0);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+        scene.add(ambientLight);
+
+        const pointLight = new THREE.PointLight(0xffffff, 1, 1000);
+        pointLight.position.set(200, 200, 200);
+        scene.add(pointLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffaa00, 0.8);
+        sunLight.position.set(-300, 100, 200);
+        scene.add(sunLight);
+
+        // Create Earth
+        const earthGeometry = new THREE.SphereGeometry(100, 64, 64);
+        const earthMaterial = new THREE.MeshPhongMaterial({
+            color: 0x2233ff,
+            emissive: 0x112244,
+            specular: 0x111111,
+            shininess: 10
+        });
+        const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+        scene.add(earth);
+
+        // Add continents (simplified)
+        const continentGeometry = new THREE.SphereGeometry(101, 64, 64);
+        const continentMaterial = new THREE.MeshPhongMaterial({
+            color: 0x228822,
+            transparent: true,
+            opacity: 0.8
+        });
+        const continents = new THREE.Mesh(continentGeometry, continentMaterial);
+        scene.add(continents);
+
+        // Atmosphere
+        const atmosphereGeometry = new THREE.SphereGeometry(110, 64, 64);
+        const atmosphereMaterial = new THREE.MeshPhongMaterial({
+            color: 0x88ccff,
+            transparent: true,
+            opacity: 0.2,
+            side: THREE.DoubleSide
+        });
+        const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+        scene.add(atmosphere);
+
+        // Stars background
+        const starGeometry = new THREE.BufferGeometry();
+        const starCount = 10000;
+        const starPositions = new Float32Array(starCount * 3);
+        
+        for (let i = 0; i < starCount * 3; i += 3) {
+            starPositions[i] = (Math.random() - 0.5) * 2000;
+            starPositions[i + 1] = (Math.random() - 0.5) * 2000;
+            starPositions[i + 2] = (Math.random() - 0.5) * 2000;
+        }
+        
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5 });
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+
+        // Arrays to store asteroids and explosions
+        let asteroids = [];
+        let explosions = [];
+        let debris = [];
+        let launchedCount = 0;
+        let impactCount = 0;
+        let totalEnergy = 0;
+
+        // Create asteroid function
+        function createAsteroid(size, speed) {
+            const geometry = new THREE.DodecahedronGeometry(size, 1);
+            const material = new THREE.MeshPhongMaterial({
+                color: 0x888888,
+                emissive: 0x333333,
+                flatShading: true
+            });
+            const asteroid = new THREE.Mesh(geometry, material);
+            
+            // Random starting position above Earth
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 400;
+            asteroid.position.x = Math.cos(angle) * distance;
+            asteroid.position.y = Math.sin(angle) * distance * 0.5 + 200;
+            asteroid.position.z = (Math.random() - 0.5) * 200;
+            
+            // Velocity towards Earth
+            const direction = new THREE.Vector3(0, 0, 0).sub(asteroid.position).normalize();
+            asteroid.userData = {
+                velocity: direction.multiplyScalar(speed * 0.5),
+                rotationSpeed: {
+                    x: (Math.random() - 0.5) * 0.1,
+                    y: (Math.random() - 0.5) * 0.1,
+                    z: (Math.random() - 0.5) * 0.1
+                },
+                size: size,
+                active: true
+            };
+            
+            scene.add(asteroid);
+            asteroids.push(asteroid);
+            launchedCount++;
+            updateStats();
+        }
+
+        // Create explosion effect
+        function createExplosion(position, size) {
+            // Main explosion sphere
+            const geometry = new THREE.SphereGeometry(1, 32, 32);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xff6600,
+                transparent: true,
+                opacity: 0.8
+            });
+            const explosion = new THREE.Mesh(geometry, material);
+            explosion.position.copy(position);
+            explosion.userData = {
+                scale: 1,
+                maxScale: size * 3,
+                growthRate: 5,
+                fadeRate: 0.02
+            };
+            scene.add(explosion);
+            explosions.push(explosion);
+
+            // Fire ring
+            const ringGeometry = new THREE.RingGeometry(1, 2, 32);
+            const ringMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff4400,
+                transparent: true,
+                opacity: 0.6,
+                side: THREE.DoubleSide
+            });
+            const fireRing = new THREE.Mesh(ringGeometry, ringMaterial);
+            fireRing.position.copy(position);
+            fireRing.lookAt(new THREE.Vector3(0, 0, 0));
+            fireRing.userData = {
+                scale: 1,
+                maxScale: size * 2,
+                growthRate: 8,
+                fadeRate: 0.03
+            };
+            scene.add(fireRing);
+            explosions.push(fireRing);
+
+            // Particles
+            const particleCount = 100;
+            const particleGeometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const velocities = [];
+            
+            for (let i = 0; i < particleCount; i++) {
+                positions[i * 3] = position.x;
+                positions[i * 3 + 1] = position.y;
+                positions[i * 3 + 2] = position.z;
+                
+                velocities.push({
+                    x: (Math.random() - 0.5) * 10,
+                    y: (Math.random() - 0.5) * 10,
+                    z: (Math.random() - 0.5) * 10
+                });
+            }
+            
+            particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const particleMaterial = new THREE.PointsMaterial({
+                color: 0xffaa00,
+                size: 3,
+                transparent: true,
+                opacity: 0.8
+            });
+            const particles = new THREE.Points(particleGeometry, particleMaterial);
+            particles.userData = {
+                velocities: velocities,
+                fadeRate: 0.01
+            };
+            scene.add(particles);
+            explosions.push(particles);
+
+            impactCount++;
+            totalEnergy += Math.pow(size, 3) * 0.001;
+            updateStats();
+        }
+
+        // Update stats display
+        function updateStats() {
+            document.getElementById('launched-count').textContent = launchedCount;
+            document.getElementById('impact-count').textContent = impactCount;
+            document.getElementById('energy-value').textContent = totalEnergy.toFixed(2) + ' MT';
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Rotate Earth slowly
+            earth.rotation.y += 0.0005;
+            continents.rotation.y += 0.0005;
+            atmosphere.rotation.y += 0.0006;
+
+            // Update asteroids
+            for (let i = asteroids.length - 1; i >= 0; i--) {
+                const asteroid = asteroids[i];
+                if (!asteroid.userData.active) continue;
+
+                // Move asteroid
+                asteroid.position.add(asteroid.userData.velocity);
+                
+                // Rotate asteroid
+                asteroid.rotation.x += asteroid.userData.rotationSpeed.x;
+                asteroid.rotation.y += asteroid.userData.rotationSpeed.y;
+                asteroid.rotation.z += asteroid.userData.rotationSpeed.z;
+
+                // Check collision with Earth
+                const distanceToEarth = asteroid.position.distanceTo(new THREE.Vector3(0, 0, 0));
+                if (distanceToEarth <= 100 + asteroid.userData.size) {
+                    // Create explosion
+                    createExplosion(asteroid.position.clone(), asteroid.userData.size);
+                    
+                    // Remove asteroid
+                    scene.remove(asteroid);
+                    asteroids.splice(i, 1);
+                    
+                    // Show warning
+                    const infoDiv = document.getElementById('info');
+                    infoDiv.innerHTML = '<span class="warning">💥 IMPACT DETECTED!</span>';
+                    setTimeout(() => {
+                        infoDiv.textContent = 'Drag to rotate view • Scroll to zoom • Launch asteroids to see the impact!';
+                    }, 2000);
+                }
+            }
+
+            // Update explosions
+            for (let i = explosions.length - 1; i >= 0; i--) {
+                const explosion = explosions[i];
+                
+                if (explosion.userData.growthRate) {
+                    // Sphere or ring explosion
+                    explosion.userData.scale += explosion.userData.growthRate;
+                    explosion.scale.setScalar(explosion.userData.scale);
+                    explosion.material.opacity -= explosion.userData.fadeRate;
+                    
+                    if (explosion.material.opacity <= 0) {
+                        scene.remove(explosion);
+                        explosions.splice(i, 1);
+                    }
+                } else if (explosion.userData.velocities) {
+                    // Particle system
+                    const positions = explosion.geometry.attributes.position.array;
+                    for (let j = 0; j < explosion.userData.velocities.length; j++) {
+                        positions[j * 3] += explosion.userData.velocities[j].x;
+                        positions[j * 3 + 1] += explosion.userData.velocities[j].y;
+                        positions[j * 3 + 2] += explosion.userData.velocities[j].z;
+                    }
+                    explosion.geometry.attributes.position.needsUpdate = true;
+                    explosion.material.opacity -= explosion.userData.fadeRate;
+                    
+                    if (explosion.material.opacity <= 0) {
+                        scene.remove(explosion);
+                        explosions.splice(i, 1);
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Mouse controls for camera
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let spherical = { theta: 0, phi: Math.PI / 3, radius: 500 };
+
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            isDragging = true;
+        });
+
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - previousMousePosition.x;
+            const deltaY = e.clientY - previousMousePosition.y;
+            
+            spherical.theta -= deltaX * 0.005;
+            spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi + deltaY * 0.005));
+            
+            updateCameraPosition();
+        });
+
+        renderer.domElement.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        renderer.domElement.addEventListener('wheel', (e) => {
+            spherical.radius = Math.max(200, Math.min(800, spherical.radius + e.deltaY));
+            updateCameraPosition();
+        });
+
+        function updateCameraPosition() {
+            camera.position.x = spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
+            camera.position.y = spherical.radius * Math.cos(spherical.phi);
+            camera.position.z = spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+            camera.lookAt(0, 0, 0);
+        }
+
+        // Control event listeners
+        document.getElementById('launch-btn').addEventListener('click', () => {
+            const size = parseInt(document.getElementById('asteroid-size').value);
+            const speed = parseInt(document.getElementById('impact-speed').value);
+            const count = parseInt(document.getElementById('asteroid-count').value);
+            
+            for (let i = 0; i < count; i++) {
+                setTimeout(() => {
+                    createAsteroid(size, speed);
+                }, i * 200);
+            }
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            // Remove all asteroids
+            asteroids.forEach(asteroid => scene.remove(asteroid));
+            asteroids = [];
+            
+            // Remove all explosions
+            explosions.forEach(explosion => scene.remove(explosion));
+            explosions = [];
+            
+            // Reset counters
+            launchedCount = 0;
+            impactCount = 0;
+            totalEnergy = 0;
+            updateStats();
+            
+            document.getElementById('info').textContent = 'Simulation reset. Launch asteroids to see the impact!';
+        });
+
+        // Slider value updates
+        document.getElementById('asteroid-size').addEventListener('input', (e) => {
+            document.getElementById('size-value').textContent = e.target.value;
+        });
+
+        document.getElementById('impact-speed').addEventListener('input', (e) => {
+            document.getElementById('speed-value').textContent = e.target.value;
+        });
+
+        document.getElementById('asteroid-count').addEventListener('input', (e) => {
+            document.getElementById('count-value').textContent = e.target.value;
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start animation
+        animate();
+    </script>
+</body>
+</html>
