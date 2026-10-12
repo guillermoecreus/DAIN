@@ -1,0 +1,13 @@
+{
+  "name": "pos-poc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prueba de concepto de un POS SaaS multi-tenant offline-first (paridad funcional tipo Cobrando.app)",
+  "type": "module",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node --no-warnings server/server.js",
+    "reset": "node --no-warnings server/seed.js --reset",
+    "test": "node --no-warnings --test test/*.test.js"
+  }
+}

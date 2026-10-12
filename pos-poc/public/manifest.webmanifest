@@ -1,0 +1,9 @@
+{
+  "name": "POS PoC",
+  "short_name": "POS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f5f4",
+  "theme_color": "#0d6e6a",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
