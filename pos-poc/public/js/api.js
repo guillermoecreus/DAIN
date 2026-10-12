@@ -5,6 +5,9 @@ export class NetworkError extends Error {}
 export class ApiError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
 
 export const net = { forcedOffline: false };
+// En el artifact no hay servidor: el transporte se reemplaza por uno dentro de la página.
+export const transport = { fetch: (...args) => fetch(...args) };
+export const EMBEDDED = !!globalThis.__POS_EMBEDDED__;
 export const isOnline = () => navigator.onLine && !net.forcedOffline;
 
 export async function api(path, { method = 'GET', body } = {}) {
@@ -12,7 +15,7 @@ export async function api(path, { method = 'GET', body } = {}) {
   const session = await store.get('kv', 'session');
   let r;
   try {
-    r = await fetch(path, {
+    r = await transport.fetch(path, {
       method, body: body === undefined ? undefined : JSON.stringify(body),
       headers: { 'content-type': 'application/json', ...(session?.token ? { authorization: `Bearer ${session.token}` } : {}) },
     });

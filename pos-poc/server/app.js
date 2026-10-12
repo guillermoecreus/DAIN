@@ -82,26 +82,39 @@ export function createApp({ dbFile = ':memory:', fiscalAdapter = new fiscal.Mock
     };
   }
 
+  // Despacho independiente del transporte: lo usa node:http y también la versión
+  // que corre dentro del navegador (artifact), donde no hay servidor.
+  async function dispatch({ method, url: rawUrl, token, body }) {
+    const url = new URL(rawUrl, 'http://local');
+    try {
+      const route = routes.find(r => r.method === method && r.re.test(url.pathname));
+      if (!route) throw new HttpError(404, 'Ruta inexistente');
+      const params = Object.fromEntries(route.keys.map((k, i) => [k, decodeURIComponent(url.pathname.match(route.re)[i + 1])]));
+      const session = platform.sessionFromToken(db, token);
+      if (!route.opts.public && !session) throw new HttpError(401, 'Sesión vencida o inexistente');
+      const out = await route.fn(session, body || {}, params, Object.fromEntries(url.searchParams), token);
+      return { status: 200, data: out ?? { ok: true } };
+    } catch (e) {
+      if (!(e instanceof HttpError)) console.error(e);
+      return { status: e.status || 500, data: { error: e instanceof HttpError ? e.message : 'Error interno' } };
+    }
+  }
+
   async function handle(req, res) {
     const url = new URL(req.url, 'http://local');
     try {
       if (!url.pathname.startsWith('/api/')) return await serveStatic(url.pathname, res);
-      const route = routes.find(r => r.method === req.method && r.re.test(url.pathname));
-      if (!route) throw new HttpError(404, 'Ruta inexistente');
-      const params = Object.fromEntries(route.keys.map((k, i) => [k, decodeURIComponent(url.pathname.match(route.re)[i + 1])]));
-      const token = (req.headers.authorization || '').replace(/^Bearer /, '');
-      const session = platform.sessionFromToken(db, token);
-      if (!route.opts.public && !session) throw new HttpError(401, 'Sesión vencida o inexistente');
       const body = ['POST', 'PUT'].includes(req.method) ? await readJson(req) : {};
-      const out = await route.fn(session, body, params, Object.fromEntries(url.searchParams), token);
-      send(res, 200, out ?? { ok: true });
+      const token = (req.headers.authorization || '').replace(/^Bearer /, '');
+      const { status, data } = await dispatch({ method: req.method, url: req.url, token, body });
+      send(res, status, data);
     } catch (e) {
       if (!(e instanceof HttpError)) console.error(e);
       send(res, e.status || 500, { error: e instanceof HttpError ? e.message : 'Error interno' });
     }
   }
 
-  return { ctx, handle, close: () => db.close() };
+  return { ctx, handle, dispatch, close: () => db.close() };
 }
 
 function send(res, status, data) {

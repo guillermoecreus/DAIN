@@ -1,7 +1,7 @@
 // M3 Punto de venta. Todo el camino crítico es local: buscar, agregar y confirmar
 // no hacen ninguna llamada al servidor.
 import * as store from '../store.js';
-import { isOnline, api } from '../api.js';
+import { isOnline, api, EMBEDDED } from '../api.js';
 import { html, $, toast, modal, fmtQty, fmtDate } from '../util.js';
 import { ars, toCents, lineTotal } from '../../lib/money.js';
 import { uuidv7 } from '../../lib/uuidv7.js';
@@ -19,7 +19,7 @@ export default async function posView(el, app) {
       <section class="pos-left card">
         <div class="search-row">
           <input id="q" placeholder="Escaneá o buscá un producto (Enter agrega)" autocomplete="off" autofocus>
-          ${'BarcodeDetector' in window ? html`<button id="cam" class="ghost" title="Escanear con la cámara">Cámara</button>` : ''}
+          ${'BarcodeDetector' in window && !EMBEDDED ? html`<button id="cam" class="ghost" title="Escanear con la cámara">Cámara</button>` : ''}
           <button id="quick" class="ghost" title="Agregar un importe sin producto">Monto rápido</button>
         </div>
         <ul id="results" class="results"></ul>
@@ -205,9 +205,9 @@ export function showTicket(app, sale, changeCents = 0) {
     </div>
     <div class="actions no-print">
       ${app.tenant.fiscalEnabled ? html`<button id="fiscal-check">Ver factura</button>` : ''}
-      <button id="print">Imprimir</button><button class="primary" data-close autofocus>Nueva venta</button>
+      ${EMBEDDED ? '' : html`<button id="print">Imprimir</button>`}<button class="primary" data-close autofocus>Nueva venta</button>
     </div>`.s);
-  m.el.querySelector('#print').onclick = () => window.print();
+  m.el.querySelector('#print')?.addEventListener('click', () => window.print());
   m.el.querySelector('#fiscal-check')?.addEventListener('click', async () => {
     try {
       const docs = await api(`/api/sales/${sale.id}/fiscal`);

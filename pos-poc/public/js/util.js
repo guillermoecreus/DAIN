@@ -33,3 +33,14 @@ export function modal(content, { wide = false, onClose } = {}) {
 export const fmtDate = iso => new Date(iso).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
 export const fmtQty = q => (Number.isInteger(q) ? String(q) : q.toLocaleString('es-AR', { maximumFractionDigits: 3 }));
 export const formData = form => Object.fromEntries(new FormData(form).entries());
+
+// Confirmación dentro de la página (window.confirm no está disponible en todos los contenedores).
+export function confirmDialog(message, { ok = 'Confirmar', danger = false } = {}) {
+  return new Promise(resolve => {
+    let answered = false;
+    const m = modal(html`<h2>¿Confirmás?</h2><p class="pre">${message}</p>
+      <div class="actions"><button data-close>Cancelar</button><button class="${danger ? 'primary danger-bg' : 'primary'}" data-ok autofocus>${ok}</button></div>`.s,
+    { onClose: () => { if (!answered) resolve(false); } });
+    m.el.querySelector('[data-ok]').onclick = () => { answered = true; m.close(); resolve(true); };
+  });
+}

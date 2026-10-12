@@ -143,7 +143,7 @@ export function startFiscalWorker(ctx, everyMs = 2000) {
     running = true;
     try { await processFiscalQueue(ctx); } catch (e) { console.error('fiscal worker', e); } finally { running = false; }
   }, everyMs);
-  timer.unref();
+  timer.unref?.();
   return () => clearInterval(timer);
 }
 

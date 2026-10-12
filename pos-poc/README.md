@@ -48,6 +48,22 @@ Variables de entorno opcionales:
 | `FISCAL_BACKOFF_MS` | `5000` | Espera base del backoff exponencial (tope 15 min) |
 | `FISCAL_IDENTIFY_THRESHOLD_ARS` | `500000` | Monto desde el que el simulador rechaza una Factura B sin identificar al receptor (ilustrativo) |
 
+## Versión para abrir en el navegador (artifact)
+
+`artifact/` empaqueta la PoC en un único HTML que corre sin servidor: el mismo código de
+`server/` se ejecuta dentro de la página sobre SQLite compilado a JavaScript (sql.js, build
+asm.js sin WebAssembly) y el cliente le habla por un transporte en memoria en lugar de HTTP.
+Los datos de ese "servidor" y la base local de la caja quedan en el IndexedDB de quien la abre.
+
+```bash
+npm i --no-save esbuild@0.24.0 sql.js@1.10.3
+npm run build:artifact     # genera dist/pos-poc.html (≈1,4 MB)
+```
+
+Diferencias con la versión local: sin service worker, sin cámara ni diálogo de impresión
+(el visor no los permite), el CSV de ventas se muestra para copiar en lugar de descargarse
+y el hash de contraseñas es un mezclador simple (los usuarios de demo viven en el navegador).
+
 ## Guion de demo (5 minutos)
 
 1. Ingresar como `dueno@demo.ar` → **Caja** → abrir turno con fondo inicial.

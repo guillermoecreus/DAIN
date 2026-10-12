@@ -2,7 +2,7 @@
 // estimado de esta caja; el definitivo lo recalcula el servidor al sincronizar.
 import * as store from '../store.js';
 import { api, isOnline } from '../api.js';
-import { html, $, toast, modal, fmtDate } from '../util.js';
+import { html, $, toast, modal, fmtDate, confirmDialog } from '../util.js';
 import { ars, toCents } from '../../lib/money.js';
 import { uuidv7 } from '../../lib/uuidv7.js';
 import { showTicket } from './pos.js';
@@ -84,7 +84,7 @@ export default async function cashView(el, app) {
     const countedCents = toCents(e.target.counted.value);
     if (!(countedCents >= 0)) return toast('Importe inválido', 'error');
     const diff = countedCents - sum.expectedCents;
-    if (!confirm(`Esperado ${ars(sum.expectedCents)} · contado ${ars(countedCents)} · diferencia ${ars(diff)}.\n¿Cerrar el turno? No se puede reabrir.`)) return;
+    if (!(await confirmDialog(`Esperado ${ars(sum.expectedCents)} · contado ${ars(countedCents)} · diferencia ${ars(diff)}.\nEl turno cerrado no se puede reabrir.`, { ok: 'Cerrar turno' }))) return;
     const denominations = Object.fromEntries([...el.querySelectorAll('[data-denom]')].filter(i => i.value).map(i => [i.dataset.denom, Number(i.value)]));
     await app.enqueue('shift.close', { shiftId: app.shift.id, countedCents, closedAt: new Date().toISOString(), denominations });
     await store.del('kv', 'shift');
@@ -125,7 +125,7 @@ function openForm(el, app) {
 }
 
 async function voidSale(app, sale) {
-  if (!confirm(`¿Anular la venta de ${ars(sale.totalCents)}? Se devuelve el stock${app.tenant.fiscalEnabled ? ' y se emite nota de crédito' : ''}.`)) return;
+  if (!(await confirmDialog(`Anular la venta de ${ars(sale.totalCents)}: se devuelve el stock${app.tenant.fiscalEnabled ? ' y se emite nota de crédito' : ''}.`, { ok: 'Anular venta', danger: true }))) return;
   await store.put('sales', { ...sale, status: 'voided' });
   for (const l of sale.lines) { const p = app.product(l.productId); if (p && p.type !== 'open') { p.stock += l.qty; await store.put('products', p); } }
   const account = sale.payments.filter(p => p.method === 'account').reduce((a, p) => a + p.amountCents, 0);

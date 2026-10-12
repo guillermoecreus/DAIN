@@ -1,6 +1,6 @@
 // M8 Reportes: dashboard del período vs. el anterior (requiere conexión).
-import { api } from '../api.js';
-import { html, $ } from '../util.js';
+import { api, EMBEDDED } from '../api.js';
+import { html, $, modal, toast } from '../util.js';
 import { ars } from '../../lib/money.js';
 
 const METHODS = { cash: 'Efectivo', mp: 'Mercado Pago', card: 'Tarjeta', transfer: 'Transferencia', account: 'Cuenta corriente' };
@@ -37,7 +37,18 @@ export default async function reportsView(el, app, range = sessionStorage.getIte
   el.querySelector('.seg').onclick = e => { const k = e.target.dataset.range; if (k) { sessionStorage.setItem('reportRange', k); reportsView(el, app, k); } };
   $('#csv').onclick = async () => {
     const { csv } = await api(`/api/reports/sales.csv?${qs}`);
+    if (EMBEDDED) return showCsv(csv); // el visor del artifact no permite descargas
     const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' })), download: `ventas-${range}.csv` });
     a.click(); URL.revokeObjectURL(a.href);
+  };
+}
+
+function showCsv(csv) {
+  const m = modal(html`<h2>Ventas (CSV)</h2><p class="muted small">Copiá el contenido y pegalo en Excel o en un archivo .csv.</p>
+    <textarea id="csv-text" rows="12" readonly>${csv}</textarea>
+    <div class="actions"><button data-close>Cerrar</button><button class="primary" id="copy-csv">Copiar</button></div>`.s, { wide: true });
+  m.el.querySelector('#copy-csv').onclick = async () => {
+    const ta = m.el.querySelector('#csv-text');
+    try { await navigator.clipboard.writeText(csv); toast('Copiado'); } catch { ta.select(); toast('Seleccionado: copialo con Ctrl+C'); }
   };
 }

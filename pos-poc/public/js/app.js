@@ -1,6 +1,6 @@
 // Shell de la PWA: login, carga de la base local, navegación y estado de sync.
 import * as store from './store.js';
-import { api, net, isOnline, NetworkError } from './api.js';
+import { api, net, isOnline, NetworkError, EMBEDDED } from './api.js';
 import * as syncer from './syncer.js';
 import { html, $, toast, modal, fmtDate } from './util.js';
 import { decodeScaleBarcode, DEFAULT_SCALE } from '../lib/scale.js';
@@ -126,7 +126,7 @@ function shell() {
     <nav class="tabs">${VIEWS.filter(v => app.can(v.perm) && (!v.fiscal || app.tenant?.fiscalEnabled)).map(v => html`<a href="#${v.id}" data-view="${v.id}">${v.label}</a>`)}</nav>
     <main id="view"></main>`.s;
   $('#logout').onclick = logout;
-  $('#force-offline').onchange = e => { net.forcedOffline = e.target.checked; sessionStorage.setItem('forcedOffline', e.target.checked ? '1' : ''); paintSync(syncer.status); if (!e.target.checked) syncer.syncNow(); route(); };
+  $('#force-offline').onchange = e => { net.forcedOffline = e.target.checked; try { sessionStorage.setItem('forcedOffline', e.target.checked ? '1' : ''); } catch { /* sin storage */ } paintSync(syncer.status); if (!e.target.checked) syncer.syncNow(); route(); };
   $('#sync-pill').onclick = () => (syncer.status.failed ? showFailed() : syncer.syncNow());
   syncer.onStatus(paintSync);
 }
@@ -165,7 +165,7 @@ async function route() {
 async function boot() {
   app.session = await store.get('kv', 'session');
   if (!app.session?.user) return loginView();
-  net.forcedOffline = sessionStorage.getItem('forcedOffline') === '1';
+  try { net.forcedOffline = sessionStorage.getItem('forcedOffline') === '1'; } catch { /* sin storage */ }
   await app.reloadLocal();
   shell();
   await syncer.refreshCounts();
@@ -175,5 +175,5 @@ async function boot() {
 
 window.addEventListener('hashchange', route);
 window.addEventListener('session-expired', () => { toast('La sesión venció: ingresá de nuevo (las ventas pendientes se conservan)', 'error'); store.del('kv', 'session').then(loginView); });
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+if ('serviceWorker' in navigator && !EMBEDDED) navigator.serviceWorker.register('/sw.js').catch(() => {});
 boot();
